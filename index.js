@@ -74,8 +74,8 @@ function makeRoom(stake) {
     const room = {
         id: `room_${stake}`,
         stake,
-        phase: 'waiting', // waiting, registration, running, announce
-        currentGameId: null,
+        phase: 'registration', // registration, running, announce
+        currentGameId: `LB${String(Date.now()).slice(-4)}`,
         players: new Map(), // userId -> { ws, cartella, name }
         selectedPlayers: new Set(), // userIds who have successfully bet
         calledNumbers: [],
@@ -83,12 +83,34 @@ function makeRoom(stake) {
         winners: [],
         takenCards: new Set(), // numbers chosen during registration (1-100)
         userCardSelections: new Map(), // userId -> cardNumber
-        startTime: null,
-        registrationEndTime: null,
+        startTime: Date.now(),
+        registrationEndTime: Date.now() + 15000, // 15 seconds from now
         gameEndTime: null,
         onJoin: async (ws) => {
             room.players.set(ws.userId, { ws, cartella: null, name: 'Player' });
             ws.room = room;
+
+            // Create game record immediately if not exists
+            if (!room.currentGameId) {
+                room.currentGameId = `LB${String(Date.now()).slice(-4)}`;
+                try {
+                    const game = new Game({
+                        gameId: room.currentGameId,
+                        stake: room.stake,
+                        players: [],
+                        status: 'registration',
+                        registrationEndsAt: new Date(room.registrationEndTime),
+                        pot: 0,
+                        systemCut: 0,
+                        prizePool: 0
+                    });
+                    await game.save();
+                    console.log(`Game ${room.currentGameId} created for stake ${room.stake}`);
+                } catch (error) {
+                    console.error('Error creating game record:', error);
+                }
+            }
+
             broadcast('snapshot', {
                 phase: room.phase,
                 gameId: room.currentGameId,
@@ -98,7 +120,8 @@ function makeRoom(stake) {
                 stake: room.stake,
                 takenCards: Array.from(room.takenCards),
                 yourSelection: room.userCardSelections.get(ws.userId) || null,
-                nextStartAt: room.registrationEndTime || room.gameEndTime || null
+                nextStartAt: room.registrationEndTime || room.gameEndTime || null,
+                isWatchMode: room.phase !== 'registration'
             }, room);
         },
         onLeave: (ws) => {
@@ -146,7 +169,7 @@ async function startRegistration(room) {
     room.takenCards.clear();
     room.userCardSelections.clear();
     room.selectedPlayers.clear(); // Clear previous selections
-    room.currentGameId = `LB${Date.now()}`;
+    room.currentGameId = `LB${String(Date.now()).slice(-4)}`;
     console.log('Registration started with gameId:', room.currentGameId);
 
     // Create game record in database when registration starts
@@ -174,7 +197,8 @@ async function startRegistration(room) {
         duration: 15000, // 15 seconds
         endsAt: room.registrationEndTime,
         availableCards: Array.from({ length: 100 }, (_, i) => i + 1), // Generate 1-100 available cards
-        takenCards: []
+        takenCards: [],
+        isWatchMode: false
     }, room);
 
     setTimeout(async () => {
@@ -187,9 +211,9 @@ async function startRegistration(room) {
 
 async function startGame(room) {
     if (room.selectedPlayers.size === 0) {
-        room.phase = 'waiting';
-        broadcast('game_cancelled', { reason: 'No players' }, room);
-        // Do not auto-restart registration; wait for a player to trigger it
+        // No players, start new registration immediately
+        console.log('No players in game, starting new registration');
+        await startRegistration(room);
         return;
     }
 
@@ -361,8 +385,7 @@ function toAnnounce(room) {
     }
 
     // Reset room after delay, then immediately start a new registration round
-    setTimeout(() => {
-        room.phase = 'waiting';
+    setTimeout(async () => {
         room.players.clear();
         room.selectedPlayers.clear();
         room.cartellas.clear();
@@ -371,8 +394,8 @@ function toAnnounce(room) {
         room.startTime = null;
         room.registrationEndTime = null;
         room.gameEndTime = null;
-        broadcast('snapshot', { phase: 'waiting', playersCount: 0, calledNumbers: [], called: [], stake: room.stake, gameId: null, nextStartAt: null }, room);
-        // Next registration will be triggered by first player selection
+        // Start new registration immediately
+        await startRegistration(room);
     }, 10000);
 }
 
@@ -455,16 +478,18 @@ wss.on('connection', async (ws, request) => {
                 console.log('select_card received:', { cardNumber, roomPhase: room?.phase, userId: ws.userId });
 
                 if (room && Number.isInteger(cardNumber) && cardNumber >= 1 && cardNumber <= 100) {
-                    // If waiting, open registration immediately and continue to process the selection
-                    if (room.phase === 'waiting') {
-                        console.log('Starting registration for card selection');
-                        await startRegistration(room);
-                    }
-
                     // Only process if we're in registration phase
                     if (room.phase !== 'registration') {
                         console.log('Rejecting selection - not in registration phase:', room.phase);
-                        ws.send(JSON.stringify({ type: 'selection_rejected', payload: { reason: 'NOT_IN_REGISTRATION', cardNumber } }));
+                        ws.send(JSON.stringify({
+                            type: 'selection_rejected',
+                            payload: {
+                                reason: 'NOT_IN_REGISTRATION',
+                                cardNumber,
+                                currentPhase: room.phase,
+                                isWatchMode: true
+                            }
+                        }));
                         return;
                     }
 
@@ -506,34 +531,6 @@ wss.on('connection', async (ws, request) => {
                         takenCards: Array.from(room.takenCards),
                         prizePool: currentPrizePool
                     }, room);
-                }
-            } else if (data.type === 'start_registration') {
-                const room = ws.room;
-                console.log('start_registration received:', { roomPhase: room?.phase, userId: ws.userId });
-
-                if (room && room.phase === 'waiting') {
-                    console.log('Starting registration from start_registration message');
-                    await startRegistration(room);
-                } else {
-                    // Send current snapshot
-                    try {
-                        ws.send(JSON.stringify({
-                            type: 'snapshot',
-                            payload: {
-                                phase: room?.phase || 'unknown',
-                                gameId: room?.currentGameId || null,
-                                playersCount: room?.selectedPlayers?.size || 0,
-                                calledNumbers: room?.calledNumbers || [],
-                                called: room?.calledNumbers || [],
-                                stake: room?.stake,
-                                takenCards: Array.from(room?.takenCards || []),
-                                yourSelection: room?.userCardSelections?.get(ws.userId) || null,
-                                nextStartAt: room?.registrationEndTime || room?.gameEndTime || null
-                            }
-                        }));
-                    } catch (e) {
-                        console.error('Error sending snapshot:', e);
-                    }
                 }
             } else if (data.type === 'bingo_claim' || data.type === 'claim_bingo') {
                 const room = ws.room;
@@ -581,14 +578,14 @@ server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 WebSocket available at ws://localhost:${PORT}/ws`);
 
-    // Initialize rooms without auto-starting registration; wait for first selection
-    stakes.forEach((stake) => {
+    // Initialize rooms with registration phase active
+    stakes.forEach(async (stake) => {
         if (!rooms.has(stake)) {
             rooms.set(stake, makeRoom(stake));
         }
         const room = rooms.get(stake);
-        room.phase = 'waiting';
-        broadcast('snapshot', { phase: 'waiting', playersCount: 0, calledNumbers: [], called: [], stake: room.stake, gameId: null, nextStartAt: null }, room);
+        // Start registration immediately
+        await startRegistration(room);
     });
 });
 
