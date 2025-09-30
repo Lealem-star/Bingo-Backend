@@ -513,6 +513,25 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
                 const adminId = String(ctx.from.id);
                 const state = adminStates.get(adminId);
                 const isAdmin = await isAdminByDB(adminId);
+
+                // Handle broadcast mode for text messages
+                if (state && state.mode === 'broadcast' && isAdmin) {
+                    adminStates.delete(adminId);
+                    try {
+                        const targets = await getBroadcastTargets();
+                        const options = buildBroadcastMarkup(ctx.message.text);
+                        const { success, failed, total } = await sendToAll(targets, async (id) => {
+                            await bot.telegram.sendMessage(id, ctx.message.text, options);
+                        });
+                        await ctx.reply(`📣 Broadcast result: ✅ ${success} / ${total} delivered${failed ? `, ❌ ${failed} failed` : ''}.`, { reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'back_to_admin' }]] } });
+                    } catch (error) {
+                        console.error('Broadcast error:', error);
+                        await ctx.reply(`❌ Failed to broadcast: ${error.message || 'Unknown error'}.`, { reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'back_to_admin' }]] } });
+                    }
+                    return;
+                }
+
+                // Handle caption for media
                 if (state && state.mode === 'await_caption_media' && isAdmin) {
                     adminStates.delete(adminId);
                     try {
@@ -524,7 +543,9 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
                     }
                     return;
                 }
-            } catch { }
+            } catch (error) {
+                console.error('Text handler error:', error);
+            }
             return next();
         });
 
