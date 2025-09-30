@@ -75,7 +75,7 @@ function makeRoom(stake) {
         id: `room_${stake}`,
         stake,
         phase: 'registration', // registration, running, announce
-        currentGameId: `LB${String(Date.now()).slice(-4)}`,
+        currentGameId: null, // Will be set when registration starts
         players: new Map(), // userId -> { ws, cartella, name }
         selectedPlayers: new Set(), // userIds who have successfully bet
         calledNumbers: [],
@@ -89,27 +89,6 @@ function makeRoom(stake) {
         onJoin: async (ws) => {
             room.players.set(ws.userId, { ws, cartella: null, name: 'Player' });
             ws.room = room;
-
-            // Create game record immediately if not exists
-            if (!room.currentGameId) {
-                room.currentGameId = `LB${String(Date.now()).slice(-4)}`;
-                try {
-                    const game = new Game({
-                        gameId: room.currentGameId,
-                        stake: room.stake,
-                        players: [],
-                        status: 'registration',
-                        registrationEndsAt: new Date(room.registrationEndTime),
-                        pot: 0,
-                        systemCut: 0,
-                        prizePool: 0
-                    });
-                    await game.save();
-                    console.log(`Game ${room.currentGameId} created for stake ${room.stake}`);
-                } catch (error) {
-                    console.error('Error creating game record:', error);
-                }
-            }
 
             broadcast('snapshot', {
                 phase: room.phase,
@@ -169,25 +148,63 @@ async function startRegistration(room) {
     room.takenCards.clear();
     room.userCardSelections.clear();
     room.selectedPlayers.clear(); // Clear previous selections
-    room.currentGameId = `LB${String(Date.now()).slice(-4)}`;
+
+    // Generate a more unique gameId with random component and process ID
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    const processId = process.pid ? String(process.pid).slice(-2) : '00';
+    room.currentGameId = `LB${String(timestamp).slice(-4)}${String(random).padStart(4, '0')}${processId}`;
     console.log('Registration started with gameId:', room.currentGameId);
 
     // Create game record in database when registration starts
-    try {
-        const game = new Game({
-            gameId: room.currentGameId,
-            stake: room.stake,
-            players: [],
-            status: 'registration',
-            registrationEndsAt: new Date(room.registrationEndTime),
-            pot: 0,
-            systemCut: 0,
-            prizePool: 0
-        });
-        await game.save();
-        console.log(`Game ${room.currentGameId} created for stake ${room.stake}`);
-    } catch (error) {
-        console.error('Error creating game record:', error);
+    let gameCreated = false;
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (!gameCreated && attempts < maxAttempts) {
+        try {
+            // Check if game already exists
+            const existingGame = await Game.findOne({ gameId: room.currentGameId });
+            if (existingGame) {
+                // Generate new gameId if duplicate found
+                const timestamp = Date.now();
+                const random = Math.floor(Math.random() * 10000);
+                const processId = process.pid ? String(process.pid).slice(-2) : '00';
+                room.currentGameId = `LB${String(timestamp).slice(-4)}${String(random).padStart(4, '0')}${processId}`;
+                attempts++;
+                continue;
+            }
+
+            const game = new Game({
+                gameId: room.currentGameId,
+                stake: room.stake,
+                players: [],
+                status: 'registration',
+                registrationEndsAt: new Date(room.registrationEndTime),
+                pot: 0,
+                systemCut: 0,
+                prizePool: 0
+            });
+            await game.save();
+            console.log(`Game ${room.currentGameId} created for stake ${room.stake}`);
+            gameCreated = true;
+        } catch (error) {
+            if (error.code === 11000) { // Duplicate key error
+                console.log(`Duplicate gameId ${room.currentGameId}, generating new one...`);
+                const timestamp = Date.now();
+                const random = Math.floor(Math.random() * 10000);
+                const processId = process.pid ? String(process.pid).slice(-2) : '00';
+                room.currentGameId = `LB${String(timestamp).slice(-4)}${String(random).padStart(4, '0')}${processId}`;
+                attempts++;
+            } else {
+                console.error('Error creating game record:', error);
+                break;
+            }
+        }
+    }
+
+    if (!gameCreated) {
+        console.error(`Failed to create game after ${maxAttempts} attempts`);
     }
 
     broadcast('registration_open', {
@@ -368,20 +385,26 @@ function toAnnounce(room) {
             }
         });
 
-        // Save game to database
-        const game = new Game({
-            gameId: `game_${Date.now()}`,
-            stake: room.stake,
-            players: Array.from(room.selectedPlayers).map(userId => ({ userId })),
-            winners: room.winners.map(w => ({ userId: w.userId, prize: prizePerWinner })),
-            calledNumbers: room.calledNumbers,
-            pot,
-            systemCut,
-            prizePool,
-            status: 'completed',
-            finishedAt: new Date()
-        });
-        game.save().catch(console.error);
+        // Update existing game record with final results
+        try {
+            await Game.findOneAndUpdate(
+                { gameId: room.currentGameId },
+                {
+                    players: Array.from(room.selectedPlayers).map(userId => ({ userId })),
+                    winners: room.winners.map(w => ({ userId: w.userId, prize: prizePerWinner })),
+                    calledNumbers: room.calledNumbers,
+                    pot,
+                    systemCut,
+                    prizePool,
+                    status: 'completed',
+                    finishedAt: new Date()
+                },
+                { new: true }
+            );
+            console.log(`Game ${room.currentGameId} updated with final results`);
+        } catch (error) {
+            console.error('Error updating game record:', error);
+        }
     }
 
     // Reset room after delay, then immediately start a new registration round
