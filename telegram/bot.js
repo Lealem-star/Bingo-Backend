@@ -435,28 +435,46 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
         bot.action(/^deposit_telebirr_(\d+(?:\.\d{1,2})?)$/, (ctx) => {
             const amount = ctx.match[1];
             ctx.answerCbQuery('📱 Telebirr deposit...');
-            ctx.reply(`📱 Telebirr Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: TADESSE\n📱 Telebirr: 0912345678\n\n💡 Steps:\n1️⃣ Open your Telebirr app\n2️⃣ Select "Send Money"\n3️⃣ Enter agent number: 0912345678\n4️⃣ Enter amount: ETB ${amount}\n5️⃣ Send the transaction\n6️⃣ Paste the receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📱 Send Receipt', callback_data: 'send_receipt_telebirr' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
+            ctx.reply(`📱 Telebirr Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: Meseret Tebabal\n📱 Telebirr: \`0934551781\`\n\n💡 Steps:\n1️⃣ Open your Telebirr app\n2️⃣ Select "Send Money"\n3️⃣ Enter agent number: \`0934551781\`\n4️⃣ Enter amount: ETB ${amount}\n5️⃣ Send the transaction\n6️⃣ Paste the receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📋 Copy Number', callback_data: 'copy_telebirr' }], [{ text: '📱 Send Receipt', callback_data: 'send_receipt_telebirr' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
         });
         bot.action(/^deposit_commercial_(\d+(?:\.\d{1,2})?)$/, (ctx) => {
             const amount = ctx.match[1];
             ctx.answerCbQuery('🏦 Commercial Bank deposit...');
-            ctx.reply(`🏦 Commercial Bank Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: TADESSE\n🏦 Account: 1000071603052\n🏛️ Bank: Commercial Bank of Ethiopia\n\n💡 Steps:\n1️⃣ Go to Commercial Bank\n2️⃣ Transfer to account: 1000071603052\n3️⃣ Enter amount: ETB ${amount}\n4️⃣ Complete the transaction\n5️⃣ Send the SMS receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📱 Send SMS Receipt', callback_data: 'send_receipt_commercial' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
+            ctx.reply(`🏦 Commercial Bank Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: Lealem Meseret\n🏦 Account: \`1000415847959\`\n🏛️ Bank: Commercial Bank of Ethiopia\n\n💡 Steps:\n1️⃣ Go to Commercial Bank\n2️⃣ Transfer to account: \`1000415847959\`\n3️⃣ Enter amount: ETB ${amount}\n4️⃣ Complete the transaction\n5️⃣ Send the SMS receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📋 Copy Account', callback_data: 'copy_commercial' }], [{ text: '📱 Send SMS Receipt', callback_data: 'send_receipt_commercial' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
         });
         bot.action(/^deposit_abyssinia_(\d+(?:\.\d{1,2})?)$/, (ctx) => {
             const amount = ctx.match[1];
             ctx.answerCbQuery('🏛️ Abyssinia Bank deposit...');
-            ctx.reply(`🏛️ Abyssinia Bank Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: TADESSE\n🏦 Account: 2000081603052\n🏛️ Bank: Abyssinia Bank\n\n💡 Steps:\n1️⃣ Go to Abyssinia Bank\n2️⃣ Transfer to account: 2000081603052\n3️⃣ Enter amount: ETB ${amount}\n4️⃣ Complete the transaction\n5️⃣ Send the SMS receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📱 Send SMS Receipt', callback_data: 'send_receipt_abyssinia' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
+            ctx.reply(`🏛️ Abyssinia Bank Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: Lealem Meseret\n🏦 Account: \`2000081603052\`\n🏛️ Bank: Abyssinia Bank\n\n💡 Steps:\n1️⃣ Go to Abyssinia Bank\n2️⃣ Transfer to account: \`2000081603052\`\n3️⃣ Enter amount: ETB ${amount}\n4️⃣ Complete the transaction\n5️⃣ Send the SMS receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📋 Copy Account', callback_data: 'copy_abyssinia' }], [{ text: '📱 Send SMS Receipt', callback_data: 'send_receipt_abyssinia' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
         });
         bot.action(/^deposit_cbe_(\d+(?:\.\d{1,2})?)$/, (ctx) => {
             const amount = ctx.match[1];
             ctx.answerCbQuery('💳 CBE Birr deposit...');
-            ctx.reply(`💳 CBE Birr Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: TADESSE\n💳 CBE Birr: 0912345678\n🏦 Bank: Commercial Bank of Ethiopia\n\n💡 Steps:\n1️⃣ Open CBE Birr app\n2️⃣ Select "Send Money"\n3️⃣ Enter agent number: 0912345678\n4️⃣ Enter amount: ETB ${amount}\n5️⃣ Send the transaction\n6️⃣ Paste the receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📱 Send Receipt', callback_data: 'send_receipt_cbe' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
+            ctx.reply(`💳 CBE Birr Deposit Instructions:\n\n📋 Agent Details:\n👤 Name: Lealem Meseret\n💳 CBE Birr: \`0934551781\`\n🏦 Bank: Commercial Bank of Ethiopia\n\n💡 Steps:\n1️⃣ Open CBE Birr app\n2️⃣ Select "Send Money"\n3️⃣ Enter agent number: \`0934551781\`\n4️⃣ Enter amount: ETB ${amount}\n5️⃣ Send the transaction\n6️⃣ Paste the receipt here\n\n✅ Your wallet will be credited automatically!`, { reply_markup: { inline_keyboard: [[{ text: '📋 Copy Number', callback_data: 'copy_cbe' }], [{ text: '📱 Send Receipt', callback_data: 'send_receipt_cbe' }], [{ text: '🔙 Back to Deposit', callback_data: 'deposit' }]] } });
         });
 
         bot.action('send_receipt_telebirr', (ctx) => { ctx.answerCbQuery('📱 Ready for Telebirr receipt...'); ctx.reply('📱 Send your Telebirr transaction receipt here:\n\n💡 Just paste the full receipt message you received from Telebirr.\n\n✅ Your wallet will be credited automatically!'); });
         bot.action('send_receipt_commercial', (ctx) => { ctx.answerCbQuery('📱 Ready for Commercial Bank SMS...'); ctx.reply('📱 Send your Commercial Bank SMS receipt here:\n\n💡 Just paste the full SMS message you received from the bank.\n\n✅ Your wallet will be credited automatically!'); });
         bot.action('send_receipt_abyssinia', (ctx) => { ctx.answerCbQuery('📱 Ready for Abyssinia Bank SMS...'); ctx.reply('📱 Send your Abyssinia Bank SMS receipt here:\n\n💡 Just paste the full SMS message you received from the bank.\n\n✅ Your wallet will be credited automatically!'); });
         bot.action('send_receipt_cbe', (ctx) => { ctx.answerCbQuery('📱 Ready for CBE Birr receipt...'); ctx.reply('📱 Send your CBE Birr transaction receipt here:\n\n💡 Just paste the full receipt message you received from CBE Birr.\n\n✅ Your wallet will be credited automatically!'); });
+
+        // Copy button handlers
+        bot.action('copy_telebirr', (ctx) => {
+            ctx.answerCbQuery('📋 Telebirr number copied!');
+            ctx.reply('📱 Telebirr Number:\n\n`0934551781`\n\n💡 Tap and hold to select, then copy!', { parse_mode: 'Markdown' });
+        });
+        bot.action('copy_commercial', (ctx) => {
+            ctx.answerCbQuery('📋 Commercial Bank account copied!');
+            ctx.reply('🏦 Commercial Bank Account:\n\n`1000415847959`\n\n💡 Tap and hold to select, then copy!', { parse_mode: 'Markdown' });
+        });
+        bot.action('copy_abyssinia', (ctx) => {
+            ctx.answerCbQuery('📋 Abyssinia Bank account copied!');
+            ctx.reply('🏛️ Abyssinia Bank Account:\n\n`2000081603052`\n\n💡 Tap and hold to select, then copy!', { parse_mode: 'Markdown' });
+        });
+        bot.action('copy_cbe', (ctx) => {
+            ctx.answerCbQuery('📋 CBE Birr number copied!');
+            ctx.reply('💳 CBE Birr Number:\n\n`0934551781`\n\n💡 Tap and hold to select, then copy!', { parse_mode: 'Markdown' });
+        });
 
         bot.on('contact', async (ctx) => {
             try {
