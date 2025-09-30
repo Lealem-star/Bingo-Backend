@@ -221,16 +221,16 @@ async function startRegistration(room) {
     setTimeout(async () => {
         if (room.phase === 'registration') {
             broadcast('registration_closed', { gameId: room.currentGameId }, room);
-            await startGame(room);
+            startGame(room);
         }
     }, 15000); // 15 seconds
 }
 
-async function startGame(room) {
+function startGame(room) {
     if (room.selectedPlayers.size === 0) {
         // No players, start new registration immediately
         console.log('No players in game, starting new registration');
-        await startRegistration(room);
+        startRegistration(room);
         return;
     }
 
@@ -242,44 +242,48 @@ async function startGame(room) {
 
     console.log(`Starting game ${room.currentGameId}: ${room.selectedPlayers.size} players, pot: ${pot}, prize pool: ${prizePool}`);
 
-    // Process wallet deductions for all selected players
+    // Process wallet deductions for all selected players (fire and forget)
     const players = [];
-    for (const userId of room.selectedPlayers) {
-        try {
-            const result = await WalletService.processGameBet(userId, room.stake, room.currentGameId);
-            if (result.success) {
-                players.push({
-                    userId,
-                    cartelaNumber: room.userCardSelections.get(userId),
-                    joinedAt: new Date()
-                });
-            } else {
-                console.error(`Failed to deduct stake for user ${userId}:`, result.error);
-                // Remove player who couldn't pay
+    (async () => {
+        for (const userId of room.selectedPlayers) {
+            try {
+                const result = await WalletService.processGameBet(userId, room.stake, room.currentGameId);
+                if (result.success) {
+                    players.push({
+                        userId,
+                        cartelaNumber: room.userCardSelections.get(userId),
+                        joinedAt: new Date()
+                    });
+                } else {
+                    console.error(`Failed to deduct stake for user ${userId}:`, result.error);
+                    // Remove player who couldn't pay
+                    room.selectedPlayers.delete(userId);
+                }
+            } catch (error) {
+                console.error(`Error processing bet for user ${userId}:`, error);
                 room.selectedPlayers.delete(userId);
             }
-        } catch (error) {
-            console.error(`Error processing bet for user ${userId}:`, error);
-            room.selectedPlayers.delete(userId);
         }
-    }
+    })();
 
-    // Update game record with final player data
-    try {
-        await Game.findOneAndUpdate(
-            { gameId: room.currentGameId },
-            {
-                players: players,
-                pot: pot,
-                systemCut: systemCut,
-                prizePool: prizePool,
-                status: 'running',
-                startedAt: new Date()
-            }
-        );
-    } catch (error) {
-        console.error('Error updating game record:', error);
-    }
+    // Update game record with final player data (fire and forget)
+    (async () => {
+        try {
+            await Game.findOneAndUpdate(
+                { gameId: room.currentGameId },
+                {
+                    players: players,
+                    pot: pot,
+                    systemCut: systemCut,
+                    prizePool: prizePool,
+                    status: 'running',
+                    startedAt: new Date()
+                }
+            );
+        } catch (error) {
+            console.error('Error updating game record:', error);
+        }
+    })();
 
     room.phase = 'running';
     room.calledNumbers = [];
@@ -326,7 +330,7 @@ async function startGame(room) {
 
 function callNextNumber(room) {
     if (room.phase !== 'running' || room.calledNumbers.length >= 75) {
-        toAnnounce(room);
+        toAnnounce(room); // Fire and forget - don't block
         return;
     }
 
@@ -338,14 +342,14 @@ function callNextNumber(room) {
     room.calledNumbers.push(number);
     broadcast('number_called', { gameId: room.currentGameId, number, calledNumbers: room.calledNumbers, value: number, called: room.calledNumbers }, room);
 
-    // Check for winners
+    // Check for winners (fire and forget - don't block the game flow)
     checkWinners(room);
 
-    // Call next number after delay
+    // Call next number after delay (maintains consistent timing)
     setTimeout(() => callNextNumber(room), 2000);
 }
 
-function checkWinners(room) {
+async function checkWinners(room) {
     const winners = [];
     room.cartellas.forEach((cartella, userId) => {
         if (checkBingo(cartella, room.calledNumbers)) {
@@ -355,11 +359,11 @@ function checkWinners(room) {
 
     if (winners.length > 0) {
         room.winners = winners;
-        toAnnounce(room);
+        await toAnnounce(room);
     }
 }
 
-function toAnnounce(room) {
+async function toAnnounce(room) {
     room.phase = 'announce';
     broadcast('game_finished', {
         gameId: room.currentGameId,
@@ -568,7 +572,7 @@ wss.on('connection', async (ws, request) => {
                             calledNumbers: room.calledNumbers,
                             called: room.calledNumbers
                         }, room);
-                        toAnnounce(room);
+                        await toAnnounce(room);
                     }
                 }
             }
