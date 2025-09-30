@@ -637,7 +637,8 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
                 // Send user SMS to dual verification system
                 try {
-                    const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3001'}/sms-forwarder/user-sms`, {
+                    const apiBase = process.env.API_URL || 'http://localhost:3001';
+                    const response = await fetch(`${apiBase}/sms-forwarder/user-sms`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
