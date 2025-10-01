@@ -6,15 +6,15 @@ const SmsForwarderService = require('../services/smsForwarderService');
 // This would be called by your SMS forwarding service (like Twilio, AWS SNS, etc.)
 router.post('/webhook', async (req, res) => {
     try {
-        const {
-            from,           // Sender phone number
-            to,             // Receiver phone number  
-            body,           // SMS message content
-            timestamp,      // Message timestamp
-            messageId       // Unique message ID
-        } = req.body;
+        const raw = req.body || {};
+        // Normalize various possible payload keys from different forwarder apps
+        const from = raw.from || raw.sender || raw.number || raw.phone || raw['in-number'] || raw.msisdn || null;
+        const to = raw.to || raw.receiver || raw['in-sim'] || raw.sim || null;
+        const body = raw.body || raw.message || raw.msg || raw.text || raw.key || '';
+        const timestamp = raw.timestamp || raw.time || raw.receivedTime || raw.date || null;
+        const messageId = raw.messageId || raw.id || raw['message-id'] || null;
 
-        console.log('SMS Webhook received:', { from, to, body: body?.substring(0, 100) + '...' });
+        console.log('SMS Webhook received:', { from, to, body: typeof body === 'string' ? body.substring(0, 100) + '...' : typeof body });
 
         // Determine if this is from a user or receiver based on phone number
         // You'll need to configure which numbers are your agent numbers

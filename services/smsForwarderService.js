@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const SMSRecord = require('../models/SMSRecord');
+const DepositVerification = require('../models/DepositVerification');
 
 // SMS Forwarder Service for dual SMS verification
 class SmsForwarderService {
@@ -25,6 +27,15 @@ class SmsForwarderService {
 
     // Parse SMS content to extract transaction details
     static parseSMSContent(message) {
+        if (typeof message !== 'string' || !message.trim()) {
+            return {
+                amount: null,
+                reference: null,
+                datetime: null,
+                paymentMethod: null,
+                rawMessage: message ?? ''
+            };
+        }
         const patterns = {
             // Amount patterns
             amount: [
