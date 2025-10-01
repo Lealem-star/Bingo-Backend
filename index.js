@@ -84,7 +84,7 @@ function makeRoom(stake) {
         takenCards: new Set(), // numbers chosen during registration (1-100)
         userCardSelections: new Map(), // userId -> cardNumber
         startTime: Date.now(),
-        registrationEndTime: Date.now() + 15000, // 15 seconds from now
+        registrationEndTime: Date.now() + 60000, // 60 seconds from now
         gameEndTime: null,
         onJoin: async (ws) => {
             room.players.set(ws.userId, { ws, cartella: null, name: 'Player' });
@@ -143,7 +143,7 @@ function broadcast(type, payload, targetRoom = null) {
 async function startRegistration(room) {
     console.log('startRegistration called for room:', room.stake);
     room.phase = 'registration';
-    room.registrationEndTime = Date.now() + 15000; // 15 seconds
+    room.registrationEndTime = Date.now() + 60000; // 60 seconds
     room.startTime = Date.now();
     room.takenCards.clear();
     room.userCardSelections.clear();
@@ -211,7 +211,7 @@ async function startRegistration(room) {
         gameId: room.currentGameId,
         stake: room.stake,
         playersCount: 0, // Start with 0, will update as players join
-        duration: 15000, // 15 seconds
+        duration: 60000, // 60 seconds
         endsAt: room.registrationEndTime,
         availableCards: Array.from({ length: 100 }, (_, i) => i + 1), // Generate 1-100 available cards
         takenCards: [],
@@ -223,7 +223,7 @@ async function startRegistration(room) {
             broadcast('registration_closed', { gameId: room.currentGameId }, room);
             startGame(room);
         }
-    }, 15000); // 15 seconds
+    }, 60000); // 60 seconds
 }
 
 function startGame(room) {
