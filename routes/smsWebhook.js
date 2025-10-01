@@ -8,7 +8,7 @@ router.post('/webhook', async (req, res) => {
     try {
         const raw = req.body || {};
         // Normalize various possible payload keys from different forwarder apps
-        const from = raw.from || raw.sender || raw.number || raw.phone || raw['in-number'] || raw.msisdn || null;
+        const from = raw.from || raw.sender || raw.number || raw.phone || raw['in-number'] || raw.msisdn || 'unknown';
         const to = raw.to || raw.receiver || raw['in-sim'] || raw.sim || null;
         const body = raw.body || raw.message || raw.msg || raw.text || raw.key || '';
         const timestamp = raw.timestamp || raw.time || raw.receivedTime || raw.date || null;
@@ -24,10 +24,22 @@ router.post('/webhook', async (req, res) => {
         const source = isFromAgent ? 'receiver' : 'user';
 
         // Store the SMS
+        // Robust timestamp parsing with fallback to now
+        let parsedAt = new Date();
+        if (timestamp) {
+            const numeric = Number(timestamp);
+            if (!Number.isNaN(numeric) && numeric > 0) {
+                parsedAt = new Date(numeric);
+            } else {
+                const parsed = Date.parse(String(timestamp));
+                parsedAt = Number.isNaN(parsed) ? new Date() : new Date(parsed);
+            }
+        }
+
         const smsRecord = await SmsForwarderService.storeIncomingSMS({
-            phoneNumber: from,
+            phoneNumber: from || 'unknown',
             message: body,
-            timestamp: timestamp ? new Date(timestamp) : new Date(),
+            timestamp: parsedAt,
             source,
             messageId
         });
