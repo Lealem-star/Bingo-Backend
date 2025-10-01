@@ -260,7 +260,10 @@ router.delete('/posts/:id', adminMiddleware, async (req, res) => {
 router.get('/balances/withdrawals', adminMiddleware, async (req, res) => {
     try {
         const { status = 'pending' } = req.query;
-        const withdrawals = await Transaction.find({ type: 'withdrawal', status }).sort({ createdAt: -1 }).lean();
+        const withdrawals = await Transaction.find({ type: 'withdrawal', status })
+            .sort({ createdAt: -1 })
+            .populate('userId', 'firstName lastName phone telegramId')
+            .lean();
         res.json({ withdrawals });
     } catch { res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' }); }
 });
@@ -270,7 +273,10 @@ router.get('/balances/deposits', adminMiddleware, async (req, res) => {
         const { from, to } = req.query;
         const q = { type: 'deposit' };
         if (from || to) { q.createdAt = {}; if (from) q.createdAt.$gte = new Date(from); if (to) q.createdAt.$lte = new Date(to); }
-        const deposits = await Transaction.find(q).sort({ createdAt: -1 }).lean();
+        const deposits = await Transaction.find(q)
+            .sort({ createdAt: -1 })
+            .populate('userId', 'firstName lastName phone telegramId')
+            .lean();
         res.json({ deposits });
     } catch { res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' }); }
 });
