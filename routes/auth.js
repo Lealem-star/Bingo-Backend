@@ -43,7 +43,6 @@ function authMiddleware(req, res, next) {
         } else if (typeof sidHeader === 'string' && sidHeader) {
             token = sidHeader;
         }
-
         if (token) {
             const payload = jwt.verify(token, JWT_SECRET);
             req.userId = String(payload.sub);
