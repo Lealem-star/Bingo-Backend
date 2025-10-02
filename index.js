@@ -94,10 +94,12 @@ function makeRoom(stake) {
         registrationEndTime: Date.now() + 60000, // 60 seconds from now
         gameEndTime: null,
         onJoin: async (ws) => {
+            console.log('Room onJoin called:', { userId: ws.userId, roomStake: room.stake, roomPhase: room.phase });
+
             room.players.set(ws.userId, { ws, cartella: null, name: 'Player' });
             ws.room = room;
 
-            broadcast('snapshot', {
+            const snapshot = {
                 phase: room.phase,
                 gameId: room.currentGameId,
                 playersCount: room.selectedPlayers.size,
@@ -108,7 +110,10 @@ function makeRoom(stake) {
                 yourSelection: room.userCardSelections.get(ws.userId) || null,
                 nextStartAt: room.registrationEndTime || room.gameEndTime || null,
                 isWatchMode: room.phase !== 'registration'
-            }, room);
+            };
+
+            console.log('Sending snapshot to user:', { userId: ws.userId, snapshot });
+            broadcast('snapshot', snapshot, room);
         },
         onLeave: (ws) => {
             room.players.delete(ws.userId);
@@ -529,12 +534,24 @@ wss.on('connection', async (ws, request) => {
         try {
             const data = JSON.parse(message);
             if (data.type === 'join_room') {
-                const stake = data.stake;
+                const stake = data.stake || data.payload?.stake;
+                console.log('join_room received:', { stake, dataStake: data.stake, payloadStake: data.payload?.stake, fullData: data });
+
+                if (!stake || !stakes.includes(stake)) {
+                    console.error('Invalid stake for join_room:', { stake, validStakes: stakes });
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        payload: { message: 'Invalid stake', validStakes: stakes }
+                    }));
+                    return;
+                }
+
                 if (!rooms.has(stake)) {
                     rooms.set(stake, makeRoom(stake));
                 }
                 const room = rooms.get(stake);
-                room.onJoin(ws);
+                console.log('Joining room:', { stake, roomPhase: room.phase, gameId: room.currentGameId });
+                await room.onJoin(ws);
             } else if (data.type === 'select_card') {
                 const room = ws.room;
                 const cardNumber = Number(data.cardNumber || data.payload?.cardNumber);
