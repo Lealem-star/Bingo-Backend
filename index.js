@@ -109,7 +109,8 @@ function makeRoom(stake) {
                 takenCards: Array.from(room.takenCards),
                 yourSelection: room.userCardSelections.get(ws.userId) || null,
                 nextStartAt: room.registrationEndTime || room.gameEndTime || null,
-                isWatchMode: room.phase !== 'registration'
+                isWatchMode: room.phase !== 'registration',
+                prizePool: room.phase === 'running' ? (room.selectedPlayers.size * room.stake) - Math.floor(room.selectedPlayers.size * room.stake * 0.2) : 0
             };
 
             console.log('Sending snapshot to user:', { userId: ws.userId, snapshot });
@@ -260,19 +261,20 @@ function startGame(room) {
         for (const userId of room.selectedPlayers) {
             try {
                 const result = await WalletService.processGameBet(userId, room.stake, room.currentGameId);
-                if (result.success) {
+                if (result && result.wallet) {
                     players.push({
                         userId,
                         cartelaNumber: room.userCardSelections.get(userId),
                         joinedAt: new Date()
                     });
+                    console.log(`Successfully deducted stake for user ${userId}:`, result.wallet.balance);
                 } else {
-                    console.error(`Failed to deduct stake for user ${userId}:`, result.error);
+                    console.error(`Failed to deduct stake for user ${userId}:`, result);
                     // Remove player who couldn't pay
                     room.selectedPlayers.delete(userId);
                 }
             } catch (error) {
-                console.error(`Error processing bet for user ${userId}:`, error);
+                console.error(`Failed to deduct stake for user ${userId}:`, error);
                 room.selectedPlayers.delete(userId);
             }
         }
