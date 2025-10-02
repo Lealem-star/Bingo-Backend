@@ -254,6 +254,8 @@ function startGame(room) {
     const prizePerWinner = room.selectedPlayers.size > 0 ? Math.floor(prizePool / room.selectedPlayers.size) : 0;
 
     console.log(`Starting game ${room.currentGameId}: ${room.selectedPlayers.size} players, pot: ${pot}, prize pool: ${prizePool}`);
+    console.log('Room players:', Array.from(room.players.keys()));
+    console.log('Selected players:', Array.from(room.selectedPlayers));
 
     // Process wallet deductions for all selected players (fire and forget)
     const players = [];
@@ -321,6 +323,7 @@ function startGame(room) {
         if (player && player.ws) {
             const card = room.cartellas.get(userId);
             const cardNumber = room.userCardSelections.get(userId);
+            console.log('Sending game_started to player:', { userId, gameId: room.currentGameId, cardNumber });
             player.ws.send(JSON.stringify({
                 type: 'game_started',
                 payload: {
@@ -335,6 +338,8 @@ function startGame(room) {
                     cardNumber: cardNumber
                 }
             }));
+        } else {
+            console.log('Player not found in room.players:', { userId, hasPlayer: !!player, hasWs: !!(player && player.ws) });
         }
     });
 
