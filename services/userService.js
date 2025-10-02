@@ -37,6 +37,12 @@ class UserService {
 
                 await newUser.save();
 
+                console.log('User saved successfully:', {
+                    telegramId: newUser.telegramId,
+                    userId: newUser._id.toString(),
+                    hasObjectId: !!newUser._id
+                });
+
                 // Create wallet for new user
                 await this.createWallet(newUser._id);
 

@@ -68,9 +68,26 @@ router.post('/telegram/verify', async (req, res) => {
                 return res.status(400).json({ error: 'INVALID_TELEGRAM_DATA' });
             }
             userId = String(telegramUser.id);
+            console.log('Telegram User Verification:', {
+                telegramId: userId,
+                telegramUser: telegramUser
+            });
+
             user = await UserService.getUserByTelegramId(userId);
+            console.log('Existing User Lookup:', {
+                telegramId: userId,
+                foundUser: !!user,
+                userId: user?._id?.toString()
+            });
+
             if (!user) {
+                console.log('Creating new user for telegramId:', userId);
                 user = await UserService.createOrUpdateUser(telegramUser);
+                console.log('New User Created:', {
+                    telegramId: userId,
+                    createdUser: !!user,
+                    userId: user?._id?.toString()
+                });
             }
             // Ensure user has a wallet
             if (user) {
@@ -87,8 +104,27 @@ router.post('/telegram/verify', async (req, res) => {
             return res.status(500).json({ error: 'USER_CREATION_FAILED' });
         }
 
+        // Debug logging to identify the issue
+        console.log('JWT Creation Debug:', {
+            userId: user._id ? user._id.toString() : 'NO_ID',
+            telegramId: user.telegramId || userId,
+            userObject: user,
+            hasObjectId: !!user._id
+        });
+
+        // Ensure we have a valid user._id (MongoDB ObjectId)
+        if (!user._id) {
+            console.error('User object missing _id field:', user);
+            return res.status(500).json({ error: 'INVALID_USER_OBJECT' });
+        }
+
         // Issue JWT - use user._id as sub for consistency
         const token = jwt.sign({ sub: user._id.toString(), iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '7d' });
+
+        console.log('JWT Token Created:', {
+            sub: user._id.toString(),
+            tokenPreview: token.substring(0, 50) + '...'
+        });
 
         res.json({
             token,

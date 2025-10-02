@@ -35,8 +35,15 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// JWT secret
+// JWT secret - ensure consistency
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here_change_this';
+
+// Debug JWT secret on startup
+console.log('JWT Secret Debug:', {
+    hasEnvSecret: !!process.env.JWT_SECRET,
+    secretLength: JWT_SECRET.length,
+    secretPreview: JWT_SECRET.substring(0, 10) + '...'
+});
 
 // Health check endpoint to keep service alive
 app.get('/health', (req, res) => {
@@ -474,8 +481,31 @@ wss.on('connection', async (ws, request) => {
     try {
         const payload = jwt.verify(token, JWT_SECRET);
         ws.userId = String(payload.sub);
+
+        console.log('WebSocket JWT Verification Success:', {
+            sub: payload.sub,
+            userId: ws.userId,
+            tokenPreview: token.substring(0, 50) + '...',
+            payloadKeys: Object.keys(payload),
+            isObjectId: /^[0-9a-fA-F]{24}$/.test(payload.sub),
+            isTelegramId: /^\d+$/.test(payload.sub) && payload.sub.length < 15
+        });
+
+        // Validate that we have a proper user ID
+        if (!payload.sub || payload.sub === 'undefined' || payload.sub === 'null') {
+            console.error('Invalid user ID in JWT payload:', payload.sub);
+            ws.close(1008, 'Invalid user ID in token');
+            return;
+        }
+
     } catch (error) {
-        console.log('JWT verification failed:', error.message);
+        console.log('JWT verification failed:', {
+            error: error.message,
+            tokenPreview: token ? token.substring(0, 50) + '...' : 'NO_TOKEN',
+            tokenLength: token ? token.length : 0,
+            jwtSecret: JWT_SECRET ? 'SET' : 'NOT_SET',
+            errorType: error.name
+        });
         ws.close(1008, 'Invalid token');
         return;
     }
