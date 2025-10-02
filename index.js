@@ -506,7 +506,13 @@ wss.on('connection', async (ws, request) => {
             jwtSecret: JWT_SECRET ? 'SET' : 'NOT_SET',
             errorType: error.name
         });
-        ws.close(1008, 'Invalid token');
+
+        // Send a more helpful error message for expired tokens
+        if (error.name === 'TokenExpiredError') {
+            ws.close(1008, 'Token expired - please refresh page');
+        } else {
+            ws.close(1008, 'Invalid token');
+        }
         return;
     }
 
