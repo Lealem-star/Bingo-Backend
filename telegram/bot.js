@@ -14,6 +14,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
         const bot = new Telegraf(BOT_TOKEN);
         const isHttpsWebApp = typeof WEBAPP_URL === 'string' && WEBAPP_URL.startsWith('https://');
+        const webAppUrl = WEBAPP_URL && WEBAPP_URL.startsWith('https://') ? WEBAPP_URL : 'https://bingo-frontend-28pi.onrender.com';
 
         (async () => {
             try {
@@ -28,10 +29,10 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
                 if (isHttpsWebApp) {
                     await bot.telegram.setChatMenuButton({
-                        menu_button: { type: 'web_app', text: 'Play', web_app: { url: WEBAPP_URL } }
+                        menu_button: { type: 'web_app', text: 'Play', web_app: { url: webAppUrl } }
                     });
                 } else {
-                    await bot.telegram.setChatMenuButton({ menu_button: { type: 'commands' } });
+                    await bot.telegram.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Play', web_app: { url: webAppUrl } } });
                 }
 
                 // Per-chat admin command setup is skipped; admins are DB-based and commands shown globally.
@@ -76,7 +77,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
                 // Construct admin URL using query parameters instead of hash
                 let adminUrl = 'https://bingo-frontend-28pi.onrender.com?admin=true';
-                if (WEBAPP_URL && WEBAPP_URL !== 'undefined') {
+                if (WEBAPP_URL && WEBAPP_URL !== 'undefined' && WEBAPP_URL.startsWith('https://')) {
                     const baseUrl = WEBAPP_URL.replace(/\/$/, '');
                     adminUrl = `${baseUrl}?admin=true`;
                 }
@@ -118,7 +119,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
             // Construct admin URL using query parameters instead of hash
             let adminUrl = 'https://bingo-frontend-28pi.onrender.com?admin=true';
-            if (WEBAPP_URL && WEBAPP_URL !== 'undefined') {
+            if (WEBAPP_URL && WEBAPP_URL !== 'undefined' && WEBAPP_URL.startsWith('https://')) {
                 const baseUrl = WEBAPP_URL.replace(/\/$/, '');
                 adminUrl = `${baseUrl}?admin=true`;
             }
@@ -208,7 +209,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
             // Construct admin URL using query parameters instead of hash
             let adminUrl = 'https://bingo-frontend-28pi.onrender.com?admin=true';
-            if (WEBAPP_URL && WEBAPP_URL !== 'undefined') {
+            if (WEBAPP_URL && WEBAPP_URL !== 'undefined' && WEBAPP_URL.startsWith('https://')) {
                 const baseUrl = WEBAPP_URL.replace(/\/$/, '');
                 adminUrl = `${baseUrl}?admin=true`;
             }
@@ -234,7 +235,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
         }
         function buildBroadcastMarkup(caption) {
             const kb = { inline_keyboard: [] };
-            if (isHttpsWebApp) { kb.inline_keyboard.push([{ text: 'Play', web_app: { url: WEBAPP_URL } }]); }
+            if (isHttpsWebApp) { kb.inline_keyboard.push([{ text: 'Play', web_app: { url: webAppUrl } }]); }
             const base = kb.inline_keyboard.length ? { reply_markup: kb } : {};
             if (caption !== undefined) return { ...base, caption, parse_mode: 'HTML' };
             return { ...base, parse_mode: 'HTML' };
@@ -279,7 +280,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
                 ctx.answerCbQuery('🎮 Opening game...');
                 const keyboard = {
                     reply_markup: {
-                        inline_keyboard: [[{ text: '🎮 Play Bingo', web_app: { url: WEBAPP_URL } }]]
+                        inline_keyboard: [[{ text: '🎮 Play Bingo', web_app: { url: webAppUrl } }]]
                     }
                 };
                 ctx.reply('🎮 Click below to start playing Bingo!', keyboard);
@@ -301,7 +302,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
                 const w = userData.wallet;
                 ctx.answerCbQuery('💵 Balance checked');
                 const keyboard = { inline_keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'back_to_menu' }]] };
-                if (isHttpsWebApp) keyboard.inline_keyboard.unshift([{ text: '🌐 Open Web App', web_app: { url: WEBAPP_URL } }]);
+                if (isHttpsWebApp) keyboard.inline_keyboard.unshift([{ text: '🌐 Open Web App', web_app: { url: webAppUrl } }]);
                 ctx.reply(`💵 Your Wallet Balance:\n\n💰 Main Wallet: ETB ${w.main.toFixed(2)}\n🎮 Play Balance: ETB ${w.play.toFixed(2)}\n🪙 Coins: ${w.coins.toFixed(0)}`, { reply_markup: keyboard });
             } catch (error) {
                 console.error('Balance check error:', error);
@@ -323,7 +324,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
         bot.action('instruction', (ctx) => {
             ctx.answerCbQuery('📖 Instructions...');
             const keyboard = { inline_keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'back_to_menu' }]] };
-            if (isHttpsWebApp) keyboard.inline_keyboard.unshift([{ text: '🎮 Start Playing', web_app: { url: WEBAPP_URL } }]);
+            if (isHttpsWebApp) keyboard.inline_keyboard.unshift([{ text: '🎮 Start Playing', web_app: { url: webAppUrl } }]);
             ctx.reply('📖 How to Play Love Bingo:\n\n1️⃣ Choose your stake (ETB 10 or 50)\n2️⃣ Select a bingo card\n3️⃣ Wait for numbers to be called\n4️⃣ Mark numbers on your card\n5️⃣ Call "BINGO!" when you win\n\n🎯 Win by getting 5 in a row (horizontal, vertical, or diagonal)\n\n💰 Prizes are shared among all winners!', { reply_markup: keyboard });
         });
 
