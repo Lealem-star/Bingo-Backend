@@ -324,7 +324,8 @@ function startGame(room) {
             const card = room.cartellas.get(userId);
             const cardNumber = room.userCardSelections.get(userId);
             console.log('Sending game_started to player:', { userId, gameId: room.currentGameId, cardNumber });
-            player.ws.send(JSON.stringify({
+            console.log('WebSocket state:', { readyState: player.ws.readyState, OPEN: player.ws.OPEN });
+            const message = JSON.stringify({
                 type: 'game_started',
                 payload: {
                     gameId: room.currentGameId,
@@ -337,7 +338,14 @@ function startGame(room) {
                     card: card,
                     cardNumber: cardNumber
                 }
-            }));
+            });
+            console.log('Game started message:', message);
+            if (player.ws.readyState === player.ws.OPEN) {
+                player.ws.send(message);
+                console.log('Game started message sent successfully to player:', userId);
+            } else {
+                console.log('WebSocket not open, cannot send message to player:', userId, 'readyState:', player.ws.readyState);
+            }
         } else {
             console.log('Player not found in room.players:', { userId, hasPlayer: !!player, hasWs: !!(player && player.ws) });
         }
