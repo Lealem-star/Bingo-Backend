@@ -14,7 +14,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
         const bot = new Telegraf(BOT_TOKEN);
         const isHttpsWebApp = typeof WEBAPP_URL === 'string' && WEBAPP_URL.startsWith('https://');
-        const webAppUrl = WEBAPP_URL && WEBAPP_URL.startsWith('https://') ? WEBAPP_URL : 'https://bingo-frontend-28pi.onrender.com';
+        const webAppUrl = WEBAPP_URL && WEBAPP_URL.startsWith('https://') ? WEBAPP_URL : 'https://dieretic-semilunate-ouida.ngrok-free.dev';
 
         (async () => {
             try {
@@ -32,7 +32,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
                         menu_button: { type: 'web_app', text: 'Play', web_app: { url: webAppUrl } }
                     });
                 } else {
-                    await bot.telegram.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Play', web_app: { url: webAppUrl } } });
+                    await bot.telegram.setChatMenuButton({ menu_button: { type: 'commands' } });
                 }
 
                 // Per-chat admin command setup is skipped; admins are DB-based and commands shown globally.
@@ -77,7 +77,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
                 // Construct admin URL using query parameters instead of hash
                 let adminUrl = 'https://bingo-frontend-28pi.onrender.com?admin=true';
-                if (WEBAPP_URL && WEBAPP_URL !== 'undefined' && WEBAPP_URL.startsWith('https://')) {
+                if (WEBAPP_URL && WEBAPP_URL !== 'undefined') {
                     const baseUrl = WEBAPP_URL.replace(/\/$/, '');
                     adminUrl = `${baseUrl}?admin=true`;
                 }
@@ -119,7 +119,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
             // Construct admin URL using query parameters instead of hash
             let adminUrl = 'https://bingo-frontend-28pi.onrender.com?admin=true';
-            if (WEBAPP_URL && WEBAPP_URL !== 'undefined' && WEBAPP_URL.startsWith('https://')) {
+            if (WEBAPP_URL && WEBAPP_URL !== 'undefined') {
                 const baseUrl = WEBAPP_URL.replace(/\/$/, '');
                 adminUrl = `${baseUrl}?admin=true`;
             }
@@ -209,7 +209,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
             // Construct admin URL using query parameters instead of hash
             let adminUrl = 'https://bingo-frontend-28pi.onrender.com?admin=true';
-            if (WEBAPP_URL && WEBAPP_URL !== 'undefined' && WEBAPP_URL.startsWith('https://')) {
+            if (WEBAPP_URL && WEBAPP_URL !== 'undefined') {
                 const baseUrl = WEBAPP_URL.replace(/\/$/, '');
                 adminUrl = `${baseUrl}?admin=true`;
             }
