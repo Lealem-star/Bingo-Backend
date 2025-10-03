@@ -14,7 +14,7 @@ function startTelegramBot({ BOT_TOKEN, WEBAPP_URL }) {
 
         const bot = new Telegraf(BOT_TOKEN);
         const isHttpsWebApp = typeof WEBAPP_URL === 'string' && WEBAPP_URL.startsWith('https://');
-        const webAppUrl = WEBAPP_URL && WEBAPP_URL.startsWith('https://') ? WEBAPP_URL : 'https://dieretic-semilunate-ouida.ngrok-free.dev';
+        const webAppUrl = 'https://dieretic-semilunate-ouida.ngrok-free.dev';
 
         (async () => {
             try {
