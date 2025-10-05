@@ -343,16 +343,6 @@ function startGame(room) {
             if (player.ws.readyState === player.ws.OPEN) {
                 player.ws.send(message);
                 console.log('Game started message sent successfully to player:', userId);
-                // Also send explicit navigate instruction to ensure client shows game screen
-                player.ws.send(JSON.stringify({
-                    type: 'navigate',
-                    payload: {
-                        page: 'game',
-                        gameId: room.currentGameId,
-                        yourCardNumber: cardNumber,
-                        stake: room.stake
-                    }
-                }));
             } else {
                 console.log('WebSocket not open, cannot send message to player:', userId, 'readyState:', player.ws.readyState);
             }
@@ -623,20 +613,7 @@ wss.on('connection', async (ws, request) => {
                         payload: {
                             cardNumber,
                             playersCount: room.selectedPlayers.size,
-                            prizePool: currentPrizePool,
-                            gameId: room.currentGameId,
-                            stake: room.stake
-                        }
-                    }));
-
-                    // Proactively instruct client to navigate to game screen
-                    ws.send(JSON.stringify({
-                        type: 'navigate',
-                        payload: {
-                            page: 'game',
-                            gameId: room.currentGameId,
-                            yourCardNumber: cardNumber,
-                            stake: room.stake
+                            prizePool: currentPrizePool
                         }
                     }));
 
