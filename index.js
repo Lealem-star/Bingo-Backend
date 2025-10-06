@@ -466,23 +466,23 @@ function getPredefinedCartella(cardNumber) {
 function checkBingo(cartella, calledNumbers) {
     // Check rows
     for (let i = 0; i < 5; i++) {
-        if (cartella[i].every(num => calledNumbers.includes(num))) {
+        if (cartella[i].every(num => num === 0 || calledNumbers.includes(num))) {
             return true;
         }
     }
 
     // Check columns
     for (let j = 0; j < 5; j++) {
-        if (cartella.every(row => calledNumbers.includes(row[j]))) {
+        if (cartella.every(row => row[j] === 0 || calledNumbers.includes(row[j]))) {
             return true;
         }
     }
 
     // Check diagonals
-    if (cartella.every((row, i) => calledNumbers.includes(row[i]))) {
+    if (cartella.every((row, i) => row[i] === 0 || calledNumbers.includes(row[i]))) {
         return true;
     }
-    if (cartella.every((row, i) => calledNumbers.includes(row[4 - i]))) {
+    if (cartella.every((row, i) => row[4 - i] === 0 || calledNumbers.includes(row[4 - i]))) {
         return true;
     }
 
