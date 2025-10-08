@@ -27,6 +27,22 @@ const walletSchema = new mongoose.Schema({
         default: 0,
         min: 0
     },
+    // Credit fields
+    creditAvailable: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    creditUsed: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    creditOutstanding: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     gamesWon: {
         type: Number,
         default: 0

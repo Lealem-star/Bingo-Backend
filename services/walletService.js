@@ -79,13 +79,13 @@ class WalletService {
     // Process deposit
     static async processDeposit(userId, amount, smsData = null) {
         try {
-            // Credit fiat balance
-            const result = await this.updateBalance(userId, { balance: amount });
+            // Credit main wallet (deposit balance)
+            const result = await this.updateBalance(userId, { main: amount });
 
-            // Gift coins: 50 birr -> 10 coins => 0.2 coin per birr
-            const giftCoins = Math.floor(amount * 0.2);
-            if (giftCoins > 0) {
-                await this.updateBalance(userId, { coins: giftCoins });
+            // Gift play wallet: 10% of deposit
+            const giftPlayAmount = Math.floor(amount * 0.1);
+            if (giftPlayAmount > 0) {
+                await this.updateBalance(userId, { play: giftPlayAmount });
             }
 
             // Create transaction record
@@ -93,7 +93,7 @@ class WalletService {
                 userId,
                 type: 'deposit',
                 amount,
-                description: `Deposit via SMS: ETB ${amount}${giftCoins ? ` (+${giftCoins} coins gift)` : ''}`,
+                description: `Deposit via SMS: ETB ${amount}${giftPlayAmount ? ` (+${giftPlayAmount} play wallet gift)` : ''}`,
                 reference: smsData?.ref || null,
                 smsData,
                 balanceBefore: result.balanceBefore,
@@ -110,6 +110,16 @@ class WalletService {
                 }
             );
 
+            // If user has outstanding credit, auto-repay from deposit
+            const wallet = await Wallet.findOne({ userId });
+            if (wallet && wallet.creditOutstanding > 0 && wallet.main > 0) {
+                const repay = Math.min(wallet.main, wallet.creditOutstanding);
+                wallet.main -= repay;
+                wallet.creditOutstanding -= repay;
+                wallet.creditUsed = Math.max(0, wallet.creditUsed - repay);
+                await wallet.save();
+            }
+
             return { wallet: result.wallet, transaction };
         } catch (error) {
             console.error('Error processing deposit:', error);
@@ -117,8 +127,8 @@ class WalletService {
         }
     }
 
-    // Convert coins to fiat balance at 100 coins = 1 birr
-    static async convertCoins(userId, coins, targetWallet = 'main') {
+    // Convert coins to play wallet at 100 coins = 1 birr
+    static async convertCoins(userId, coins, targetWallet = 'play') {
         try {
             const wallet = await Wallet.findOne({ userId });
             if (!wallet) {
@@ -137,13 +147,11 @@ class WalletService {
 
             const coinsToDeduct = birrAmount * 100;
 
-            // Determine which wallet to add the converted amount to
-            const updates = { coins: -coinsToDeduct };
-            if (targetWallet === 'play') {
-                updates.play = birrAmount;
-            } else {
-                updates.main = birrAmount;
-            }
+            // Convert to play wallet only
+            const updates = {
+                coins: -coinsToDeduct,
+                play: birrAmount
+            };
 
             const result = await this.updateBalance(userId, updates);
 
@@ -152,7 +160,7 @@ class WalletService {
                 userId,
                 type: 'coin_conversion',
                 amount: birrAmount,
-                description: `Converted ${coinsToDeduct} coins to ETB ${birrAmount} (added to ${targetWallet} wallet)`,
+                description: `Converted ${coinsToDeduct} coins to ETB ${birrAmount} (added to play wallet)`,
                 balanceBefore: result.balanceBefore,
                 balanceAfter: result.balanceAfter
             });
@@ -165,44 +173,79 @@ class WalletService {
         }
     }
 
-    // Process game bet
+    // Process game bet - use main wallet first, then play wallet
     static async processGameBet(userId, amount, gameId) {
         try {
-            const result = await this.updateBalance(userId, { play: -amount });
+            const wallet = await Wallet.findOne({ userId });
+            if (!wallet) {
+                throw new Error('Wallet not found');
+            }
 
-            // Create transaction record
-            const transaction = new Transaction({
-                userId,
-                type: 'game_bet',
-                amount: -amount,
-                description: `Game bet: ETB ${amount}`,
-                gameId,
-                balanceBefore: result.balanceBefore,
-                balanceAfter: result.balanceAfter
-            });
-            await transaction.save();
+            // Check if main wallet has enough
+            if (wallet.main >= amount) {
+                // Use main wallet
+                const result = await this.updateBalance(userId, { main: -amount });
 
-            return { wallet: result.wallet, transaction };
+                // Create transaction record
+                const transaction = new Transaction({
+                    userId,
+                    type: 'game_bet',
+                    amount: -amount,
+                    description: `Game bet: ETB ${amount} (from main wallet)`,
+                    gameId,
+                    balanceBefore: result.balanceBefore,
+                    balanceAfter: result.balanceAfter
+                });
+                await transaction.save();
+
+                return { wallet: result.wallet, transaction, source: 'main' };
+            } else if (wallet.play >= amount) {
+                // Use play wallet
+                const result = await this.updateBalance(userId, { play: -amount });
+
+                // Create transaction record
+                const transaction = new Transaction({
+                    userId,
+                    type: 'game_bet',
+                    amount: -amount,
+                    description: `Game bet: ETB ${amount} (from play wallet)`,
+                    gameId,
+                    balanceBefore: result.balanceBefore,
+                    balanceAfter: result.balanceAfter
+                });
+                await transaction.save();
+
+                return { wallet: result.wallet, transaction, source: 'play' };
+            } else {
+                throw new Error('INSUFFICIENT_FUNDS');
+            }
         } catch (error) {
             console.error('Error processing game bet:', error);
             throw error;
         }
     }
 
-    // Process game win
+    // Process game win - credit to main wallet
     static async processGameWin(userId, amount, gameId) {
         try {
-            const result = await this.updateBalance(userId, {
-                play: amount,
-                gamesWon: 1
-            });
+            const result = await this.updateBalance(userId, { main: amount, gamesWon: 1 });
+
+            // Auto-repay outstanding credit first from main
+            const wallet = await Wallet.findOne({ userId });
+            if (wallet && wallet.creditOutstanding > 0 && wallet.main > 0) {
+                const repay = Math.min(amount, wallet.creditOutstanding);
+                wallet.main -= repay;
+                wallet.creditOutstanding -= repay;
+                wallet.creditUsed = Math.max(0, wallet.creditUsed - repay);
+                await wallet.save();
+            }
 
             // Create transaction record
             const transaction = new Transaction({
                 userId,
                 type: 'game_win',
                 amount,
-                description: `Game win: ETB ${amount}`,
+                description: `Game win: ETB ${amount} (credited to main wallet)`,
                 gameId,
                 balanceBefore: result.balanceBefore,
                 balanceAfter: result.balanceAfter
@@ -212,6 +255,67 @@ class WalletService {
             return { wallet: result.wallet, transaction };
         } catch (error) {
             console.error('Error processing game win:', error);
+            throw error;
+        }
+    }
+
+    // Compute credit tier based on all-time deposits
+    static getCreditTierAmount(totalDeposited) {
+        if (totalDeposited > 500) return 50;
+        if (totalDeposited >= 200) return 20;
+        return 10;
+    }
+
+    // Ensure credit availability fields are set based on tier
+    static async ensureCreditAvailability(userId) {
+        const wallet = await Wallet.findOne({ userId });
+        if (!wallet) throw new Error('Wallet not found');
+        const tier = this.getCreditTierAmount(wallet.totalDeposited || 0);
+        // Set available to tier if lower than tier
+        if ((wallet.creditAvailable || 0) < tier) {
+            wallet.creditAvailable = tier;
+            await wallet.save();
+        }
+        return wallet;
+    }
+
+    // Use credit for a game stake (once per game handled by caller)
+    static async useCredit(userId, amount) {
+        const wallet = await this.ensureCreditAvailability(userId);
+        if ((wallet.main > 0) || (wallet.play > 0)) {
+            throw new Error('NOT_ELIGIBLE_FOR_CREDIT');
+        }
+        const tier = wallet.creditAvailable || 0;
+        if (amount > tier) {
+            throw new Error('CREDIT_LIMIT_EXCEEDED');
+        }
+        // Increase used and outstanding by amount
+        wallet.creditUsed = (wallet.creditUsed || 0) + amount;
+        wallet.creditOutstanding = (wallet.creditOutstanding || 0) + amount;
+        await wallet.save();
+        return wallet;
+    }
+
+    // Process game completion - give 10 coins as gift
+    static async processGameCompletion(userId, gameId) {
+        try {
+            const result = await this.updateBalance(userId, { coins: 10 });
+
+            // Create transaction record
+            const transaction = new Transaction({
+                userId,
+                type: 'game_completion',
+                amount: 10,
+                description: `Game completion gift: 10 coins`,
+                gameId,
+                balanceBefore: result.balanceBefore,
+                balanceAfter: result.balanceAfter
+            });
+            await transaction.save();
+
+            return { wallet: result.wallet, transaction };
+        } catch (error) {
+            console.error('Error processing game completion:', error);
             throw error;
         }
     }

@@ -24,6 +24,10 @@ const gameSchema = new mongoose.Schema({
             type: Number,
             required: true
         },
+        isCredit: {
+            type: Boolean,
+            default: false
+        },
         cardData: {
             type: Object,
             required: true

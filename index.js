@@ -247,13 +247,11 @@ function startGame(room) {
         return;
     }
 
-    // Deduct stake from all selected players' wallets
-    const pot = room.selectedPlayers.size * room.stake;
-    const systemCut = Math.floor(pot * 0.2);
-    const prizePool = pot - systemCut;
-    const prizePerWinner = room.selectedPlayers.size > 0 ? Math.floor(prizePool / room.selectedPlayers.size) : 0;
+    // Process stake sources per player and build pot from paying players only
+    let payingUsers = [];
+    let creditUsers = [];
 
-    console.log(`Starting game ${room.currentGameId}: ${room.selectedPlayers.size} players, pot: ${pot}, prize pool: ${prizePool}`);
+    console.log(`Starting game ${room.currentGameId}: ${room.selectedPlayers.size} players`);
     console.log('Room players:', Array.from(room.players.keys()));
     console.log('Selected players:', Array.from(room.selectedPlayers));
 
@@ -267,23 +265,81 @@ function startGame(room) {
                     players.push({
                         userId,
                         cartelaNumber: room.userCardSelections.get(userId),
-                        joinedAt: new Date()
+                        joinedAt: new Date(),
+                        isCredit: false
                     });
-                    console.log(`Successfully deducted stake for user ${userId}:`, result.wallet.balance);
-                } else {
-                    console.error(`Failed to deduct stake for user ${userId}:`, result);
-                    // Remove player who couldn't pay
-                    room.selectedPlayers.delete(userId);
+                    payingUsers.push(userId);
+                    console.log(`Stake deducted for user ${userId} from ${result.source}`);
+
+                    // Send wallet update to the player
+                    const playerObj = room.players.get(userId);
+                    const ws = playerObj && playerObj.ws;
+                    if (ws && ws.readyState === ws.OPEN) {
+                        const wallet = await WalletService.getWallet(userId);
+                        ws.send(JSON.stringify({
+                            type: 'wallet_update',
+                            payload: {
+                                main: wallet.main,
+                                play: wallet.play,
+                                coins: wallet.coins,
+                                creditAvailable: wallet.creditAvailable,
+                                creditUsed: wallet.creditUsed,
+                                creditOutstanding: wallet.creditOutstanding,
+                                source: result.source
+                            }
+                        }));
+                    }
                 }
             } catch (error) {
-                console.error(`Failed to deduct stake for user ${userId}:`, error);
-                room.selectedPlayers.delete(userId);
+                if (String(error.message) === 'INSUFFICIENT_FUNDS') {
+                    try {
+                        // Try to grant and use credit (once per game eligibility enforced by wallet service)
+                        await WalletService.useCredit(userId, room.stake);
+                        players.push({
+                            userId,
+                            cartelaNumber: room.userCardSelections.get(userId),
+                            joinedAt: new Date(),
+                            isCredit: true
+                        });
+                        creditUsers.push(userId);
+                        console.log(`User ${userId} is playing on credit`);
+
+                        // Notify credit update
+                        const playerObj = room.players.get(userId);
+                        const ws = playerObj && playerObj.ws;
+                        if (ws && ws.readyState === ws.OPEN) {
+                            const wallet = await WalletService.getWallet(userId);
+                            ws.send(JSON.stringify({
+                                type: 'wallet_update',
+                                payload: {
+                                    main: wallet.main,
+                                    play: wallet.play,
+                                    coins: wallet.coins,
+                                    creditAvailable: wallet.creditAvailable,
+                                    creditUsed: wallet.creditUsed,
+                                    creditOutstanding: wallet.creditOutstanding,
+                                    source: 'credit'
+                                }
+                            }));
+                        }
+                    } catch (e) {
+                        console.error(`Credit not available for user ${userId}:`, e.message);
+                        // Remove player who couldn't pay nor get credit
+                        room.selectedPlayers.delete(userId);
+                    }
+                } else {
+                    console.error(`Failed to deduct stake for user ${userId}:`, error);
+                    room.selectedPlayers.delete(userId);
+                }
             }
         }
-    })();
 
-    // Update game record with final player data (fire and forget)
-    (async () => {
+        // After processing sources, compute pot from paying users only
+        const pot = payingUsers.length * room.stake;
+        const systemCut = Math.floor(pot * 0.2);
+        const prizePool = pot - systemCut;
+
+        // Persist game start metadata
         try {
             await Game.findOneAndUpdate(
                 { gameId: room.currentGameId },
@@ -299,7 +355,35 @@ function startGame(room) {
         } catch (error) {
             console.error('Error updating game record:', error);
         }
+
+        // Send individual game_started messages with computed prizePool
+        room.selectedPlayers.forEach(userId => {
+            const player = room.players.get(userId);
+            if (player && player.ws) {
+                const card = room.cartellas.get(userId);
+                const cardNumber = room.userCardSelections.get(userId);
+                const message = JSON.stringify({
+                    type: 'game_started',
+                    payload: {
+                        gameId: room.currentGameId,
+                        stake: room.stake,
+                        playersCount: room.selectedPlayers.size,
+                        pot: pot,
+                        prizePool: prizePool,
+                        calledNumbers: room.calledNumbers,
+                        called: room.calledNumbers,
+                        card: card,
+                        cardNumber: cardNumber
+                    }
+                });
+                if (player.ws.readyState === player.ws.OPEN) {
+                    player.ws.send(message);
+                }
+            }
+        });
     })();
+
+    // (persisting handled above after payments/credit)
 
     room.phase = 'running';
     room.calledNumbers = [];
@@ -411,8 +495,47 @@ async function toAnnounce(room) {
         room.winners.forEach(async (winner) => {
             try {
                 await WalletService.processGameWin(winner.userId, prizePerWinner);
+
+                // Send wallet update to the winner
+                const ws = room.players.get(winner.userId);
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const wallet = await WalletService.getWallet(winner.userId);
+                    ws.send(JSON.stringify({
+                        type: 'wallet_update',
+                        payload: {
+                            main: wallet.main,
+                            play: wallet.play,
+                            coins: wallet.coins,
+                            source: 'win'
+                        }
+                    }));
+                }
             } catch (error) {
                 console.error('Game win processing error:', error);
+            }
+        });
+
+        // Give 10 coins to all players who completed the game
+        room.selectedPlayers.forEach(async (userId) => {
+            try {
+                await WalletService.processGameCompletion(userId, room.currentGameId);
+
+                // Send wallet update to the player
+                const ws = room.players.get(userId);
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const wallet = await WalletService.getWallet(userId);
+                    ws.send(JSON.stringify({
+                        type: 'wallet_update',
+                        payload: {
+                            main: wallet.main,
+                            play: wallet.play,
+                            coins: wallet.coins,
+                            source: 'completion'
+                        }
+                    }));
+                }
+            } catch (error) {
+                console.error('Game completion processing error:', error);
             }
         });
 

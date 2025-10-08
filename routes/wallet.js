@@ -28,7 +28,7 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// POST /wallet/convert
+// POST /wallet/convert - convert coins to play wallet only
 router.post('/convert', authMiddleware, async (req, res) => {
     try {
         const { coins, targetWallet } = req.body;
@@ -39,7 +39,7 @@ router.post('/convert', authMiddleware, async (req, res) => {
         const user = await UserService.getUserById(dbUserId);
         if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
 
-        const result = await WalletService.convertCoins(user._id, Number(coins), targetWallet || 'main');
+        const result = await WalletService.convertCoins(user._id, Number(coins), 'play');
         return res.json({ wallet: result.wallet });
     } catch (error) {
         console.error('Convert error:', error);
