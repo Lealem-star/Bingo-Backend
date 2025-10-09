@@ -1,6 +1,8 @@
 const express = require('express');
 const BingoCards = require('../data/cartellas');
 const CartellaService = require('../services/cartellaService');
+const Game = require('../models/Game');
+const User = require('../models/User');
 
 const router = express.Router();
 
@@ -324,6 +326,74 @@ router.get('/api/cartellas/player/:playerId', async (req, res) => {
             success: false,
             error: 'Failed to get player selections'
         });
+    }
+});
+
+// GET /api/leaderboard?period=alltime|monthly|weekly|daily|newyear
+router.get('/api/leaderboard', async (req, res) => {
+    try {
+        const period = String(req.query.period || 'alltime');
+
+        const now = new Date();
+        const start = new Date(0);
+        if (period === 'daily') {
+            start.setTime(now.getTime());
+            start.setHours(0, 0, 0, 0);
+        } else if (period === 'weekly') {
+            const day = now.getDay();
+            const diff = (day === 0 ? 6 : day - 1); // Monday start
+            start.setTime(now.getTime());
+            start.setHours(0, 0, 0, 0);
+            start.setDate(start.getDate() - diff);
+        } else if (period === 'monthly') {
+            start.setTime(now.getTime());
+            start.setDate(1);
+            start.setHours(0, 0, 0, 0);
+        } else if (period === 'newyear') {
+            start.setFullYear(now.getFullYear(), 0, 1);
+            start.setHours(0, 0, 0, 0);
+        }
+
+        const matchTime = (period === 'alltime') ? {} : { finishedAt: { $gte: start, $lte: now } };
+
+        // Aggregate wins and played from Game model
+        // played: any game where user is in players
+        // wins: any game where user appears in winners
+        const playedAgg = await Game.aggregate([
+            { $match: { status: 'finished', ...matchTime } },
+            { $unwind: '$players' },
+            { $group: { _id: '$players.userId', played: { $sum: 1 } } }
+        ]);
+
+        const winsAgg = await Game.aggregate([
+            { $match: { status: 'finished', ...matchTime } },
+            { $unwind: '$winners' },
+            { $group: { _id: '$winners.userId', wins: { $sum: 1 } } }
+        ]);
+
+        const playedMap = new Map(playedAgg.map(r => [String(r._id), r.played]));
+        const winsMap = new Map(winsAgg.map(r => [String(r._id), r.wins]));
+
+        // Merge keys
+        const userIds = new Set([...playedMap.keys(), ...winsMap.keys()]);
+
+        // Fetch user names
+        const users = await User.find({ _id: { $in: Array.from(userIds) } }, { firstName: 1, username: 1 }).lean();
+        const idToUser = new Map(users.map(u => [String(u._id), u]));
+
+        const leaders = Array.from(userIds).map(id => {
+            const u = idToUser.get(id) || {};
+            return {
+                name: u.firstName || u.username || 'Player',
+                wins: winsMap.get(id) || 0,
+                played: playedMap.get(id) || 0
+            };
+        }).sort((a, b) => b.wins - a.wins || b.played - a.played).slice(0, 100);
+
+        res.json({ leaders });
+    } catch (e) {
+        console.error('leaderboard error', e);
+        res.status(500).json({ error: 'leaderboard_failed' });
     }
 });
 
