@@ -8,6 +8,7 @@ const fs = require('fs');
 const connectDB = require('./config/database');
 const UserService = require('./services/userService');
 const WalletService = require('./services/walletService');
+const User = require('./models/User');
 const Game = require('./models/Game');
 const jwt = require('jsonwebtoken');
 const BingoCards = require('./data/cartellas');
@@ -476,9 +477,33 @@ async function checkWinners(room) {
 
 async function toAnnounce(room) {
     room.phase = 'announce';
+
+    // Populate winner data with user names
+    const populatedWinners = await Promise.all(room.winners.map(async (winner) => {
+        try {
+            const user = await User.findById(winner.userId);
+            return {
+                ...winner,
+                name: user ? `${user.firstName} ${user.lastName}`.trim() : 'Unknown Player',
+                cartelaNumber: winner.cartella?.cartelaNumber || winner.cartelaNumber,
+                cardNumbers: winner.cartella?.numbers || winner.cardNumbers,
+                called: room.calledNumbers
+            };
+        } catch (error) {
+            console.error('Error fetching user for winner:', error);
+            return {
+                ...winner,
+                name: 'Unknown Player',
+                cartelaNumber: winner.cartella?.cartelaNumber || winner.cartelaNumber,
+                cardNumbers: winner.cartella?.numbers || winner.cardNumbers,
+                called: room.calledNumbers
+            };
+        }
+    }));
+
     broadcast('game_finished', {
         gameId: room.currentGameId,
-        winners: room.winners,
+        winners: populatedWinners,
         calledNumbers: room.calledNumbers,
         called: room.calledNumbers,
         stake: room.stake,
